@@ -387,60 +387,58 @@
 
 <script>
 // ============================================================
-// 【食堂のメニュー情報】ここを書き換えてカスタマイズしてください
+// 【メニュー情報をlocalStorageから読み込む】
+// メニューの編集は menu-editor.html で行い、ここでは自動取得します
 // ============================================================
-const MENU_DATA = `
-【食堂メニュー情報】
+function buildMenuText() {
+  // ① メニューデータを管理画面から取得
+  const savedMenus = localStorage.getItem("cafeteria_menus");
+  const savedInfo  = localStorage.getItem("cafeteria_info");
 
-■ ランチセット A（¥650）
-  内容：ご飯・味噌汁・唐揚げ2個・サラダ
-  使用食材：鶏肉、小麦粉、卵、キャベツ、きゅうり
-  アレルギー：卵・小麦・大豆
+  // ② 営業情報
+  let bizText = "営業時間：11:00〜14:00（平日のみ）";
+  if (savedInfo) {
+    const info = JSON.parse(savedInfo);
+    bizText = `営業時間：${info.open || "11:00"}〜${info.close || "14:00"}（${info.note || "平日のみ"}）`;
+  }
 
-■ ランチセット B（¥600）
-  内容：ご飯・味噌汁・焼き魚・漬物
-  使用食材：鮭、米、味噌、大豆
-  アレルギー：魚・大豆
+  // ③ メニューがなければデフォルト文言
+  if (!savedMenus) {
+    return `【食堂メニュー情報】\n（メニュー未登録）\n${bizText}`;
+  }
 
-■ カレーライス（¥500）
-  内容：カレー・ご飯・福神漬け
-  使用食材：豚肉、じゃがいも、玉ねぎ、にんじん、小麦粉
-  アレルギー：小麦・豚肉
+  // ④ メニューデータをAIが読みやすいテキスト形式に変換
+  const menus = JSON.parse(savedMenus);
+  const lines = menus.map(m => {
+    const allergyStr = m.allergies && m.allergies.length > 0
+      ? m.allergies.join("・")
+      : "なし";
+    const noteStr = m.note ? `\n  備考：${m.note}` : "";
+    return `■ ${m.name}（¥${m.price}）
+  内容：${m.description}
+  使用食材：${m.ingredients}
+  アレルギー：${allergyStr}${noteStr}`;
+  });
 
-■ うどん（¥450）
-  内容：かけうどん・天かす・ねぎ
-  使用食材：小麦粉（うどん）、だし（かつお・昆布）
-  アレルギー：小麦・魚
-
-■ 日替わり丼（¥550）
-  ※本日：親子丼
-  使用食材：鶏肉、卵、玉ねぎ、醤油、みりん
-  アレルギー：卵・大豆
-
-■ サラダ単品（¥200）
-  使用食材：レタス、トマト、きゅうり、コーン
-  アレルギー：なし
-
-■ 味噌汁（¥100）
-  使用食材：味噌、豆腐、わかめ、大豆
-  アレルギー：大豆
-
-営業時間：11:00〜14:00（平日のみ）
-`;
+  return `【食堂メニュー情報】\n\n${lines.join("\n\n")}\n\n${bizText}`;
+}
 
 // ============================================================
 // 【システムプロンプト】AIの性格・役割の設定
+// ※ SYSTEM_PROMPTは毎回の送信時に最新メニューを読み込んで生成
 // ============================================================
-const SYSTEM_PROMPT = `あなたは大学の食堂で働くフレンドリーなAIアシスタントです。
+function getSystemPrompt() {
+  return `あなたは大学の食堂で働くフレンドリーなAIアシスタントです。
 以下のメニュー情報をもとに、学生からの質問に日本語で答えてください。
 
-${MENU_DATA}
+${buildMenuText()}
 
 回答のルール：
 - 丁寧でも親しみやすい口調で話す（「〜だよ！」「〜です！」など）
 - アレルギーに関する質問には特に丁寧・正確に答える
 - メニュー情報にない質問は「わからない」と正直に答える
 - 回答は2〜4文程度に簡潔にまとめる`;
+}
 
 // ============================================================
 // 会話履歴（AIとのやりとりを記憶するための配列）
@@ -462,7 +460,7 @@ async function callOllama(userMessage) {
       body: JSON.stringify({
         model: "gemma3",          // 使用するAIモデル名
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },  // AIの役割設定
+          { role: "system", content: getSystemPrompt() },  // AIの役割設定（毎回最新メニューを取得）
           ...conversationHistory                         // これまでの会話履歴
         ],
         stream: false             // falseにすると全文まとめて返ってくる
