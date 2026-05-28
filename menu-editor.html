@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メニュー管理画面 | 食堂AIアシスタント</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+:root {
+  --bg: #f0f4f8;
+  --panel: #ffffff;
+  --accent: #2563eb;
+  --accent-light: #dbeafe;
+  --accent2: #16a34a;
+  --accent2-light: #dcfce7;
+  --danger: #dc2626;
+  --danger-light: #fee2e2;
+  --warn: #d97706;
+  --dark: #1e293b;
+  --mid: #64748b;
+  --light: #e2e8f0;
+  --border: #cbd5e1;
+  --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font: 'M PLUS Rounded 1c', 'Noto Sans JP', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--dark);
+  min-height: 100vh;
+}
+
+/* ===== トップバー ===== */
+.topbar {
+  background: var(--panel);
+  border-bottom: 2px solid var(--light);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow);
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-title {
+  display: flex; align-items: center; gap: 10px;
+}
+.topbar-title h1 { font-size: 1.15rem; font-weight: 800; color: var(--dark); }
+.topbar-title span { font-size: 0.8rem; background: var(--accent-light); color: var(--accent); padding: 3px 10px; border-radius: 20px; font-weight: 700; }
+.topbar-actions { display: flex; gap: 8px; }
+
+/* ===== メインレイアウト ===== */
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+/* ===== セクションタイトル ===== */
+.section-title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--dark);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title::before {
+  content: '';
+  display: inline-block;
+  width: 4px; height: 18px;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+/* ===== 営業情報カード ===== */
+.info-card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+  margin-bottom: 28px;
+}
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 520px) { .info-grid { grid-template-columns: 1fr; } }
+
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--mid);
+  margin-bottom: 5px;
+  letter-spacing: 0.03em;
+}
+input[type="text"], input[type="time"], textarea, select {
+  width: 100%;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  font-family: var(--font);
+  font-size: 0.9rem;
+  color: var(--dark);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input[type="text"]:focus,
+input[type="time"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+}
+textarea { resize: vertical; min-height: 72px; }
+
+/* ===== メニューリスト ===== */
+.menu-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+
+.menu-card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  border: 2px solid transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  animation: slideIn 0.25s ease;
+}
+.menu-card:hover { border-color: var(--accent-light); box-shadow: var(--shadow-lg); }
+
+.menu-card-header {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--light);
+}
+.menu-card-header:hover { background: var(--accent-light); }
+
+.menu-card-name-display {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--dark);
+  flex: 1;
+}
+.menu-card-price-display {
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 12px;
+  font-size: 0.95rem;
+}
+.menu-card-toggle { color: var(--mid); font-size: 0.85rem; transition: transform 0.2s; }
+.menu-card.open .menu-card-toggle { transform: rotate(180deg); }
+
+.menu-card-body {
+  padding: 16px;
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  background: #fff;
+}
+.menu-card.open .menu-card-body { display: grid; }
+@media (max-width: 520px) { .menu-card-body { grid-template-columns: 1fr; } }
+
+.menu-card-body .full-width { grid-column: 1 / -1; }
+
+.allergy-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.allergy-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.allergy-chip input[type="checkbox"] { display: none; }
+.allergy-chip.checked {
+  background: var(--danger-light);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.card-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--light);
+  margin-top: 4px;
+}
+
+/* ===== ボタン ===== */
+.btn {
+  border: none; border-radius: var(--radius-sm);
+  padding: 9px 18px;
+  font-family: var(--font); font-size: 0.85rem; font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.2s, box-shadow 0.2s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:active { transform: scale(0.96); }
+.btn-primary  { background: var(--accent);  color: white; box-shadow: 0 2px 8px rgba(37,99,235,0.25); }
+.btn-success  { background: var(--accent2); color: white; box-shadow: 0 2px 8px rgba(22,163,74,0.25); }
+.btn-danger   { background: var(--danger);  color: white; }
+.btn-ghost    { background: transparent; color: var(--mid); border: 2px solid var(--border); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+
+/* ===== 追加ボタンエリア ===== */
+.add-area {
+  background: var(--panel);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--mid);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.add-area:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+/* ===== 保存バナー ===== */
+.save-banner {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--panel);
+  border-top: 2px solid var(--light);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  z-index: 200;
+}
+.save-status {
+  font-size: 0.85rem;
+  color: var(--mid);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.save-status.saved { color: var(--accent2); }
+.save-status.unsaved { color: var(--warn); }
+
+/* ===== トースト通知 ===== */
+#toast {
+  position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+  background: var(--dark); color: white;
+  padding: 10px 22px; border-radius: 100px;
+  font-size: 0.88rem; font-weight: 700;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 999;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; }
+
+/* ===== アニメーション ===== */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<!-- トップバー -->
+<div class="topbar">
+  <div class="topbar-title">
+    <span>🍱</span>
+    <h1>メニュー管理画面</h1>
+    <span>スタッフ用</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-ghost btn-sm" onclick="openChat()">💬 AIチャット画面を開く</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ① 営業情報 -->
+  <div class="section-title">営業情報</div>
+  <div class="info-card" style="margin-bottom:28px;">
+    <div class="info-grid">
+      <div>
+        <div class="field-label">開店時間</div>
+        <input type="time" id="openTime" value="11:00">
+      </div>
+      <div>
+        <div class="field-label">閉店時間</div>
+        <input type="time" id="closeTime" value="14:00">
+      </div>
+      <div style="grid-column:1/-1;">
+        <div class="field-label">営業日・その他メモ（例：平日のみ、祝日休み など）</div>
+        <input type="text" id="bizNote" placeholder="例：平日のみ営業" value="平日のみ">
+      </div>
+    </div>
+  </div>
+
+  <!-- ② メニュー一覧 -->
+  <div class="section-title">メニュー一覧</div>
+  <div class="menu-list" id="menuList"></div>
+
+  <!-- メニュー追加ボタン -->
+  <div class="add-area" onclick="addMenuItem()">＋ メニューを追加する</div>
+
+</div>
+
+<!-- 保存バナー -->
+<div class="save-banner">
+  <div class="save-status unsaved" id="saveStatus">⚠ 未保存の変更があります</div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-ghost btn-sm" onclick="loadDefaults()">🔄 サンプルデータに戻す</button>
+    <button class="btn btn-success" onclick="saveAll()">💾 保存する</button>
+  </div>
+</div>
+
+<!-- トースト通知 -->
+<div id="toast"></div>
+
+<script>
+// ============================================================
+// アレルギー項目の一覧
+// ============================================================
+const ALLERGY_LIST = [
+  "卵","乳","小麦","そば","落花生（ピーナッツ）","えび","かに",
+  "くるみ","大豆","魚","肉類","果物"
+];
+
+// ============================================================
+// サンプルメニューデータ（初回起動時のデフォルト値）
+// ============================================================
+const DEFAULT_MENUS = [
+  {
+    name: "ランチセット A",
+    price: "650",
+    description: "ご飯・味噌汁・唐揚げ2個・サラダ",
+    ingredients: "鶏肉、小麦粉、卵、キャベツ、きゅうり",
+    allergies: ["卵","小麦","大豆"],
+    note: ""
+  },
+  {
+    name: "ランチセット B",
+    price: "600",
+    description: "ご飯・味噌汁・焼き魚・漬物",
+    ingredients: "鮭、米、味噌、大豆",
+    allergies: ["魚","大豆"],
+    note: ""
+  },
+  {
+    name: "カレーライス",
+    price: "500",
+    description: "カレー・ご飯・福神漬け",
+    ingredients: "豚肉、じゃがいも、玉ねぎ、にんじん、小麦粉",
+    allergies: ["小麦"],
+    note: ""
+  },
+  {
+    name: "うどん",
+    price: "450",
+    description: "かけうどん・天かす・ねぎ",
+    ingredients: "小麦粉（うどん）、だし（かつお・昆布）",
+    allergies: ["小麦","魚"],
+    note: ""
+  },
+  {
+    name: "日替わり丼",
+    price: "550",
+    description: "本日：親子丼",
+    ingredients: "鶏肉、卵、玉ねぎ、醤油、みりん",
+    allergies: ["卵","大豆"],
+    note: "内容は日によって変わります"
+  }
+];
+
+// ============================================================
+// 現在のメニューデータ（メモリ上で管理）
+// ============================================================
+let menus = [];
+
+// ============================================================
+// ページ読み込み時：localStorageからデータを復元
+// ============================================================
+window.addEventListener("load", () => {
+  const saved = localStorage.getItem("cafeteria_menus");
+  const savedInfo = localStorage.getItem("cafeteria_info");
+
+  if (saved) {
+    // 保存済みデータがあれば読み込む
+    menus = JSON.parse(saved);
+  } else {
+    // なければサンプルデータを使う
+    menus = JSON.parse(JSON.stringify(DEFAULT_MENUS));
+  }
+
+  if (savedInfo) {
+    const info = JSON.parse(savedInfo);
+    document.getElementById("openTime").value  = info.open  || "11:00";
+    document.getElementById("closeTime").value = info.close || "14:00";
+    document.getElementById("bizNote").value   = info.note  || "平日のみ";
+  }
+
+  renderMenuList();
+  setSaveStatus(true);  // 読み込み直後は「保存済み」状態
+});
+
+// ============================================================
+// メニュー一覧をHTMLに描画する
+// ============================================================
+function renderMenuList() {
+  const list = document.getElementById("menuList");
+  list.innerHTML = "";  // 一度クリアして再描画
+
+  menus.forEach((menu, index) => {
+    const card = document.createElement("div");
+    card.className = "menu-card";
+    card.dataset.index = index;
+
+    // アレルギーチェックボックスのHTML生成
+    const allergyChips = ALLERGY_LIST.map(a => {
+      const checked = menu.allergies.includes(a) ? "checked" : "";
+      return `<label class="allergy-chip ${checked}" data-allergy="${a}" onclick="toggleAllergy(this, ${index})">
+        <input type="checkbox" ${checked ? "checked" : ""}> ${a}
+      </label>`;
+    }).join("");
+
+    card.innerHTML = `
+      <div class="menu-card-header" onclick="toggleCard(this)">
+        <span class="menu-card-name-display">${escHtml(menu.name) || "（名前未設定）"}</span>
+        <span class="menu-card-price-display">${menu.price ? "¥" + menu.price : ""}</span>
+        <span class="menu-card-toggle">▼</span>
+      </div>
+      <div class="menu-card-body">
+        <div>
+          <div class="field-label">メニュー名 *</div>
+          <input type="text" value="${escHtml(menu.name)}"
+            placeholder="例：ランチセット A"
+            oninput="updateField(${index}, 'name', this.value)">
+        </div>
+        <div>
+          <div class="field-label">価格（円）</div>
+          <input type="text" value="${escHtml(menu.price)}"
+            placeholder="例：650"
+            oninput="updateField(${index}, 'price', this.value)">
+        </div>
+        <div class="full-width">
+          <div class="field-label">内容・説明</div>
+          <input type="text" value="${escHtml(menu.description)}"
+            placeholder="例：ご飯・味噌汁・唐揚げ2個・サラダ"
+            oninput="updateField(${index}, 'description', this.value)">
+        </div>
+        <div class="full-width">
+          <div class="field-label">使用食材</div>
+          <input type="text" value="${escHtml(menu.ingredients)}"
+            placeholder="例：鶏肉、小麦粉、卵、キャベツ"
+            oninput="updateField(${index}, 'ingredients', this.value)">
+        </div>
+        <div class="full-width">
+          <div class="field-label">⚠ アレルギー食品（該当するものをクリックして選択）</div>
+          <div class="allergy-checkboxes">${allergyChips}</div>
+        </div>
+        <div class="full-width">
+          <div class="field-label">備考・メモ（任意）</div>
+          <input type="text" value="${escHtml(menu.note)}"
+            placeholder="例：本日の日替わりは親子丼です"
+            oninput="updateField(${index}, 'note', this.value)">
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-danger btn-sm" onclick="deleteMenu(${index})">🗑 削除</button>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+// ============================================================
+// アコーディオン（カードの開閉）
+// ============================================================
+function toggleCard(header) {
+  const card = header.closest(".menu-card");
+  card.classList.toggle("open");
+}
+
+// ============================================================
+// フィールドの値が変わったときにデータを更新
+// ============================================================
+function updateField(index, field, value) {
+  menus[index][field] = value;
+
+  // カードヘッダーのプレビューも更新
+  const card = document.querySelector(`.menu-card[data-index="${index}"]`);
+  if (!card) return;
+  if (field === "name")  card.querySelector(".menu-card-name-display").textContent  = value || "（名前未設定）";
+  if (field === "price") card.querySelector(".menu-card-price-display").textContent = value ? "¥" + value : "";
+
+  setSaveStatus(false);  // 変更があったので「未保存」に
+}
+
+// ============================================================
+// アレルギーチップのON/OFF切り替え
+// ============================================================
+function toggleAllergy(label, index) {
+  const allergy = label.dataset.allergy;
+  const current = menus[index].allergies;
+  if (current.includes(allergy)) {
+    menus[index].allergies = current.filter(a => a !== allergy);
+    label.classList.remove("checked");
+  } else {
+    menus[index].allergies.push(allergy);
+    label.classList.add("checked");
+  }
+  setSaveStatus(false);
+}
+
+// ============================================================
+// メニューを追加する
+// ============================================================
+function addMenuItem() {
+  menus.push({
+    name: "", price: "", description: "",
+    ingredients: "", allergies: [], note: ""
+  });
+  renderMenuList();
+
+  // 追加したカードを開いて、スクロール
+  const cards = document.querySelectorAll(".menu-card");
+  const newCard = cards[cards.length - 1];
+  newCard.classList.add("open");
+  newCard.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  setSaveStatus(false);
+}
+
+// ============================================================
+// メニューを削除する
+// ============================================================
+function deleteMenu(index) {
+  if (!confirm(`「${menus[index].name || "このメニュー"}」を削除しますか？`)) return;
+  menus.splice(index, 1);
+  renderMenuList();
+  setSaveStatus(false);
+}
+
+// ============================================================
+// 全データを localStorage に保存する
+// ============================================================
+function saveAll() {
+  // メニューデータを保存
+  localStorage.setItem("cafeteria_menus", JSON.stringify(menus));
+
+  // 営業情報も保存
+  localStorage.setItem("cafeteria_info", JSON.stringify({
+    open:  document.getElementById("openTime").value,
+    close: document.getElementById("closeTime").value,
+    note:  document.getElementById("bizNote").value
+  }));
+
+  setSaveStatus(true);
+  showToast("💾 保存しました！");
+}
+
+// ============================================================
+// サンプルデータに戻す
+// ============================================================
+function loadDefaults() {
+  if (!confirm("現在の入力内容を破棄してサンプルデータに戻しますか？")) return;
+  menus = JSON.parse(JSON.stringify(DEFAULT_MENUS));
+  renderMenuList();
+  setSaveStatus(false);
+  showToast("🔄 サンプルデータを読み込みました");
+}
+
+// ============================================================
+// 保存ステータスの表示を更新
+// ============================================================
+function setSaveStatus(isSaved) {
+  const el = document.getElementById("saveStatus");
+  if (isSaved) {
+    el.textContent = "✅ 保存済み";
+    el.className = "save-status saved";
+  } else {
+    el.textContent = "⚠ 未保存の変更があります";
+    el.className = "save-status unsaved";
+  }
+}
+
+// ============================================================
+// トースト通知を表示する
+// ============================================================
+function showToast(msg) {
+  const toast = document.getElementById("toast");
+  toast.textContent = msg;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 2200);
+}
+
+// ============================================================
+// AIチャット画面を別タブで開く
+// ============================================================
+function openChat() {
+  window.open("cafeteria-ai.html", "_blank");
+}
+
+// ============================================================
+// 入力変更を監視（営業情報）
+// ============================================================
+["openTime","closeTime","bizNote"].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => setSaveStatus(false));
+});
+
+// XSS対策
+function escHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>
