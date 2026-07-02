@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メニュー管理画面 | 食堂AIアシスタント</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+:root {
+  --bg:#f0f4f8; --panel:#fff; --accent:#2563eb; --accent-light:#dbeafe;
+  --accent2:#16a34a; --accent2-light:#dcfce7; --danger:#dc2626; --danger-light:#fee2e2;
+  --warn:#d97706; --dark:#1e293b; --mid:#64748b; --light:#e2e8f0; --border:#cbd5e1;
+  --shadow:0 2px 16px rgba(0,0,0,0.08); --shadow-lg:0 8px 32px rgba(0,0,0,0.12);
+  --radius:16px; --radius-sm:10px; --font:'M PLUS Rounded 1c','Noto Sans JP',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg);color:var(--dark);min-height:100vh;}
+
+/* トップバー */
+.topbar{background:var(--panel);border-bottom:2px solid var(--light);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow);position:sticky;top:0;z-index:100;}
+.topbar-title{display:flex;align-items:center;gap:10px;}
+.topbar-title h1{font-size:1.15rem;font-weight:800;}
+.topbar-badge{font-size:0.8rem;background:var(--accent-light);color:var(--accent);padding:3px 10px;border-radius:20px;font-weight:700;}
+
+/* コンテナ */
+.container{max-width:860px;margin:0 auto;padding:28px 20px 100px;}
+
+/* セクションタイトル */
+.section-title{font-size:1rem;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.section-title::before{content:'';display:inline-block;width:4px;height:18px;background:var(--accent);border-radius:4px;}
+
+/* カード */
+.card{background:var(--panel);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow);margin-bottom:24px;}
+
+/* グリッド */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.full{grid-column:1/-1;}
+@media(max-width:540px){.grid-2{grid-template-columns:1fr;}}
+
+/* フィールド */
+.field-label{font-size:0.78rem;font-weight:700;color:var(--mid);margin-bottom:5px;letter-spacing:.03em;}
+input[type=text],input[type=time],textarea,select{width:100%;border:2px solid var(--border);border-radius:var(--radius-sm);padding:9px 13px;font-family:var(--font);font-size:.9rem;color:var(--dark);background:#fff;outline:none;transition:border-color .2s,box-shadow .2s;}
+input[type=text]:focus,input[type=time]:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+textarea{resize:vertical;min-height:60px;}
+
+/* メニューカード */
+.menu-list{display:flex;flex-direction:column;gap:14px;margin-bottom:20px;}
+.menu-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;border:2px solid transparent;transition:border-color .2s,box-shadow .2s;animation:slideIn .25s ease;}
+.menu-card:hover{border-color:var(--accent-light);box-shadow:var(--shadow-lg);}
+.menu-card-header{background:linear-gradient(135deg,#f8fafc,#f1f5f9);padding:13px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;border-bottom:1px solid var(--light);}
+.menu-card-header:hover{background:var(--accent-light);}
+.menu-card-name{font-weight:700;font-size:.95rem;flex:1;}
+.menu-card-price{font-weight:700;color:var(--accent);margin-right:12px;}
+.menu-card-toggle{color:var(--mid);font-size:.85rem;transition:transform .2s;}
+.menu-card.open .menu-card-toggle{transform:rotate(180deg);}
+.menu-card-body{display:none;padding:16px;background:#fff;}
+.menu-card.open .menu-card-body{display:block;}
+.menu-body-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:540px){.menu-body-grid{grid-template-columns:1fr;}}
+
+/* アレルギーチップ */
+.allergy-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+.allergy-chip{display:inline-flex;align-items:center;background:#fff;border:2px solid var(--border);border-radius:20px;padding:6px 14px;font-size:.82rem;cursor:pointer;transition:all .15s;color:var(--mid);font-weight:500;font-family:var(--font);}
+.allergy-chip:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-light);}
+.allergy-chip.checked{background:var(--danger);border-color:var(--danger);color:#fff;font-weight:700;box-shadow:0 2px 8px rgba(220,38,38,.3);transform:scale(1.05);}
+.allergy-chip.checked::after{content:' ✓';font-weight:900;}
+
+/* カードアクション */
+.card-actions{display:flex;justify-content:flex-end;padding-top:12px;margin-top:12px;border-top:1px solid var(--light);}
+
+/* 追加エリア */
+.add-area{background:var(--panel);border:2px dashed var(--border);border-radius:var(--radius);padding:18px;text-align:center;cursor:pointer;transition:all .2s;color:var(--mid);font-weight:700;font-size:.9rem;font-family:var(--font);}
+.add-area:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+
+/* ボタン */
+.btn{border:none;border-radius:var(--radius-sm);padding:9px 18px;font-family:var(--font);font-size:.85rem;font-weight:700;cursor:pointer;transition:transform .1s,opacity .2s;display:inline-flex;align-items:center;gap:6px;}
+.btn:active{transform:scale(.96);}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.25);}
+.btn-success{background:var(--accent2);color:#fff;box-shadow:0 2px 8px rgba(22,163,74,.25);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-ghost{background:transparent;color:var(--mid);border:2px solid var(--border);}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+.btn-sm{padding:6px 12px;font-size:.8rem;}
+
+/* ステータス */
+.conn-status{font-size:.82rem;min-height:20px;margin-top:6px;}
+
+/* 保存バナー */
+.save-banner{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:2px solid var(--light);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -4px 20px rgba(0,0,0,.08);z-index:200;}
+.save-status{font-size:.85rem;color:var(--mid);display:flex;align-items:center;gap:6px;}
+.save-status.saved{color:var(--accent2);}
+.save-status.unsaved{color:var(--warn);}
+
+/* トースト */
+#toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 22px;border-radius:100px;font-size:.88rem;font-weight:700;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;white-space:nowrap;}
+#toast.show{opacity:1;}
+
+/* HR */
+.divider{border:none;border-top:1px solid var(--light);margin:16px 0;}
+
+@keyframes slideIn{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">
+    <span>🍱</span>
+    <h1>メニュー管理画面</h1>
+    <span class="topbar-badge">スタッフ用</span>
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick="window.open('cafeteria-ai.html','_blank')">💬 AIチャット画面を開く</button>
+</div>
+
+<div class="container">
+
+  <!-- 営業情報 -->
+  <div class="section-title">営業情報</div>
+  <div class="card">
+    <div class="grid-2">
+      <div>
+        <div class="field-label">開店時間</div>
+        <input type="time" id="openTime" value="11:00">
+      </div>
+      <div>
+        <div class="field-label">閉店時間</div>
+        <input type="time" id="closeTime" value="14:00">
+      </div>
+      <div class="full">
+        <div class="field-label">営業日・その他メモ</div>
+        <input type="text" id="bizNote" placeholder="例：平日のみ営業" value="平日のみ">
+      </div>
+    </div>
+  </div>
+
+  <!-- AI・音声接続設定 -->
+  <div class="section-title">AI・音声接続設定</div>
+  <div class="card">
+    <!-- Ollama -->
+    <div class="field-label">🤖 Ollama（AI）の Cloudflare Tunnel URL</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:5px;">
+      <input type="text" id="ollamaUrl" placeholder="https://xxxx.trycloudflare.com（空欄=localhost）" style="flex:1;">
+      <button class="btn btn-ghost btn-sm" onclick="testOllama()">🔌 接続テスト</button>
+    </div>
+    <div style="font-size:.78rem;color:var(--mid);margin-top:6px;line-height:1.6;">
+      💡 学内・自宅のみなら空欄でOK。外部公開時は cloudflared のURLを貼り付け。
+    </div>
+    <div class="conn-status" id="ollamaStatus"></div>
+
+    <div class="divider"></div>
+
+    <!-- VOICEVOX -->
+    <div class="field-label">🎙 VOICEVOX の URL（音声読み上げ）</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:5px;">
+      <input type="text" id="voicevoxUrl" placeholder="https://xxxx.trycloudflare.com（空欄=localhost）" style="flex:1;">
+      <button class="btn btn-ghost btn-sm" onclick="testVoicevox()">🔊 接続テスト</button>
+    </div>
+    <div style="font-size:.78rem;color:var(--mid);margin-top:6px;line-height:1.6;">
+      💡 VOICEVOXを起動＋voicevox_proxy.pyを実行＋cloudflaredで公開したURLを貼り付け。
+    </div>
+    <div class="conn-status" id="vvStatus"></div>
+
+    <div class="divider"></div>
+
+    <!-- キャラクター -->
+    <div class="field-label">🎭 読み上げキャラクター</div>
+    <select id="voiceId" onchange="setSaveStatus(false)" style="margin-top:5px;">
+      <option value="3">ずんだもん（明るい・元気）</option>
+      <option value="2">四国めたん（落ち着き・やさしい）</option>
+      <option value="8">春日部つむぎ（明るい・若い）</option>
+      <option value="10">波音リツ（クール・女性）</option>
+      <option value="13">青山龍星（落ち着き・男性）</option>
+      <option value="1">四国めたん（あまあま）</option>
+    </select>
+    <div style="font-size:.78rem;color:var(--mid);margin-top:5px;">※ VOICEVOXを起動していないと反映されません</div>
+  </div>
+
+  <!-- メニュー一覧 -->
+  <div class="section-title">メニュー一覧</div>
+  <div class="menu-list" id="menuList"></div>
+  <div class="add-area" onclick="addMenu()">＋ メニューを追加する</div>
+
+</div>
+
+<!-- 保存バナー -->
+<div class="save-banner">
+  <div class="save-status unsaved" id="saveStatus">⚠ 未保存の変更があります</div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-ghost btn-sm" onclick="loadDefaults()">🔄 サンプルデータに戻す</button>
+    <button class="btn btn-success" onclick="saveAll()">💾 保存する</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ALLERGY_LIST = ["卵","乳","小麦","そば","落花生（ピーナッツ）","えび","かに","くるみ","大豆","魚","肉類","果物"];
+
+const DEFAULT_MENUS = [
+  {name:"ランチセット A",price:"650",description:"ご飯・味噌汁・唐揚げ2個・サラダ",ingredients:"鶏肉、小麦粉、卵、キャベツ、きゅうり",allergies:["卵","小麦","大豆"],note:""},
+  {name:"ランチセット B",price:"600",description:"ご飯・味噌汁・焼き魚・漬物",ingredients:"鮭、米、味噌、大豆",allergies:["魚","大豆"],note:""},
+  {name:"カレーライス",price:"500",description:"カレー・ご飯・福神漬け",ingredients:"豚肉、じゃがいも、玉ねぎ、にんじん、小麦粉",allergies:["小麦"],note:""},
+  {name:"うどん",price:"450",description:"かけうどん・天かす・ねぎ",ingredients:"小麦粉（うどん）、だし（かつお・昆布）",allergies:["小麦","魚"],note:""},
+  {name:"日替わり丼",price:"550",description:"本日：親子丼",ingredients:"鶏肉、卵、玉ねぎ、醤油、みりん",allergies:["卵","大豆"],note:"内容は日によって変わります"},
+];
+
+let menus = [];
+
+window.addEventListener("load", () => {
+  const saved     = localStorage.getItem("cafeteria_menus");
+  const savedInfo = localStorage.getItem("cafeteria_info");
+  const savedOUrl = localStorage.getItem("cafeteria_ollama_url");
+  const savedVUrl = localStorage.getItem("cafeteria_voicevox_url");
+  const savedVId  = localStorage.getItem("cafeteria_voice_id");
+
+  menus = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_MENUS));
+
+  if (savedInfo) {
+    const info = JSON.parse(savedInfo);
+    document.getElementById("openTime").value  = info.open  || "11:00";
+    document.getElementById("closeTime").value = info.close || "14:00";
+    document.getElementById("bizNote").value   = info.note  || "平日のみ";
+  }
+  if (savedOUrl) document.getElementById("ollamaUrl").value   = savedOUrl;
+  if (savedVUrl) document.getElementById("voicevoxUrl").value = savedVUrl;
+  if (savedVId)  document.getElementById("voiceId").value     = savedVId;
+
+  renderMenuList();
+  setSaveStatus(true);
+});
+
+function renderMenuList() {
+  const list = document.getElementById("menuList");
+  list.innerHTML = "";
+  menus.forEach((m, i) => {
+    const chips = ALLERGY_LIST.map(a => {
+      const chk = m.allergies.includes(a);
+      return `<button type="button" class="allergy-chip${chk?' checked':''}" data-allergy="${a}" onclick="toggleAllergy(this,${i})">${a}</button>`;
+    }).join("");
+
+    const card = document.createElement("div");
+    card.className = "menu-card";
+    card.dataset.index = i;
+    card.innerHTML = `
+      <div class="menu-card-header" onclick="toggleCard(this)">
+        <span class="menu-card-name">${esc(m.name)||'（名前未設定）'}</span>
+        <span class="menu-card-price">${m.price?'¥'+m.price:''}</span>
+        <span class="menu-card-toggle">▼</span>
+      </div>
+      <div class="menu-card-body">
+        <div class="menu-body-grid">
+          <div>
+            <div class="field-label">メニュー名 *</div>
+            <input type="text" value="${esc(m.name)}" placeholder="例：ランチセット A" oninput="updateField(${i},'name',this.value)">
+          </div>
+          <div>
+            <div class="field-label">価格（円）</div>
+            <input type="text" value="${esc(m.price)}" placeholder="例：650" oninput="updateField(${i},'price',this.value)">
+          </div>
+          <div class="full">
+            <div class="field-label">内容・説明</div>
+            <input type="text" value="${esc(m.description)}" placeholder="例：ご飯・味噌汁・唐揚げ2個・サラダ" oninput="updateField(${i},'description',this.value)">
+          </div>
+          <div class="full">
+            <div class="field-label">使用食材</div>
+            <input type="text" value="${esc(m.ingredients)}" placeholder="例：鶏肉、小麦粉、卵" oninput="updateField(${i},'ingredients',this.value)">
+          </div>
+          <div class="full">
+            <div class="field-label">⚠ アレルギー食品（クリックで選択）</div>
+            <div class="allergy-wrap">${chips}</div>
+          </div>
+          <div class="full">
+            <div class="field-label">備考・メモ（任意）</div>
+            <input type="text" value="${esc(m.note)}" placeholder="例：本日の日替わりは親子丼" oninput="updateField(${i},'note',this.value)">
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-danger btn-sm" onclick="deleteMenu(${i})">🗑 削除</button>
+        </div>
+      </div>`;
+    list.appendChild(card);
+  });
+}
+
+function toggleCard(header) {
+  header.closest(".menu-card").classList.toggle("open");
+}
+
+function updateField(i, field, value) {
+  menus[i][field] = value;
+  const card = document.querySelector(`.menu-card[data-index="${i}"]`);
+  if (field === "name")  card.querySelector(".menu-card-name").textContent  = value || "（名前未設定）";
+  if (field === "price") card.querySelector(".menu-card-price").textContent = value ? "¥"+value : "";
+  setSaveStatus(false);
+}
+
+function toggleAllergy(btn, i) {
+  const a = btn.dataset.allergy;
+  if (menus[i].allergies.includes(a)) {
+    menus[i].allergies = menus[i].allergies.filter(x => x !== a);
+    btn.classList.remove("checked");
+  } else {
+    menus[i].allergies.push(a);
+    btn.classList.add("checked");
+  }
+  setSaveStatus(false);
+}
+
+function addMenu() {
+  menus.push({name:"",price:"",description:"",ingredients:"",allergies:[],note:""});
+  renderMenuList();
+  const cards = document.querySelectorAll(".menu-card");
+  const last = cards[cards.length-1];
+  last.classList.add("open");
+  last.scrollIntoView({behavior:"smooth",block:"center"});
+  setSaveStatus(false);
+}
+
+function deleteMenu(i) {
+  if (!confirm(`「${menus[i].name||"このメニュー"}」を削除しますか？`)) return;
+  menus.splice(i,1);
+  renderMenuList();
+  setSaveStatus(false);
+}
+
+function saveAll() {
+  localStorage.setItem("cafeteria_menus", JSON.stringify(menus));
+  localStorage.setItem("cafeteria_info", JSON.stringify({
+    open:  document.getElementById("openTime").value,
+    close: document.getElementById("closeTime").value,
+    note:  document.getElementById("bizNote").value,
+  }));
+  localStorage.setItem("cafeteria_ollama_url",   document.getElementById("ollamaUrl").value.trim());
+  localStorage.setItem("cafeteria_voicevox_url", document.getElementById("voicevoxUrl").value.trim());
+  localStorage.setItem("cafeteria_voice_id",     document.getElementById("voiceId").value);
+  setSaveStatus(true);
+  showToast("💾 保存しました！");
+}
+
+function loadDefaults() {
+  if (!confirm("現在の内容を破棄してサンプルデータに戻しますか？")) return;
+  menus = JSON.parse(JSON.stringify(DEFAULT_MENUS));
+  renderMenuList();
+  setSaveStatus(false);
+  showToast("🔄 サンプルデータを読み込みました");
+}
+
+function setSaveStatus(saved) {
+  const el = document.getElementById("saveStatus");
+  el.textContent = saved ? "✅ 保存済み" : "⚠ 未保存の変更があります";
+  el.className = "save-status " + (saved ? "saved" : "unsaved");
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+async function testOllama() {
+  const url = document.getElementById("ollamaUrl").value.trim() || "http://localhost:11434";
+  const el  = document.getElementById("ollamaStatus");
+  el.textContent = "🔄 接続確認中…"; el.style.color = "var(--mid)";
+  try {
+    const res = await fetch(`${url}/api/tags`, {signal:AbortSignal.timeout(5000)});
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    const data = await res.json();
+    const models = (data.models||[]).map(m=>m.name).join("、")||"（モデルなし）";
+    el.textContent = `✅ 接続成功！ 利用可能なモデル: ${models}`;
+    el.style.color = "var(--accent2)";
+  } catch(e) {
+    el.textContent = `❌ 接続失敗（${e.message}）`;
+    el.style.color = "var(--danger)";
+  }
+}
+
+async function testVoicevox() {
+  const url = document.getElementById("voicevoxUrl").value.trim() || "http://localhost:50021";
+  const el  = document.getElementById("vvStatus");
+  el.textContent = "🔄 接続確認中…"; el.style.color = "var(--mid)";
+  try {
+    const res = await fetch(`${url}/speakers`, {signal:AbortSignal.timeout(5000)});
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    const data = await res.json();
+    el.textContent = `✅ 接続成功！ ${data.length}キャラクター利用可能`;
+    el.style.color = "var(--accent2)";
+  } catch(e) {
+    el.textContent = `❌ 接続失敗。VOICEVOXとプロキシが起動しているか確認してください。`;
+    el.style.color = "var(--danger)";
+  }
+}
+
+// 入力変更を監視
+["openTime","closeTime","bizNote","ollamaUrl","voicevoxUrl","voiceId"].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => setSaveStatus(false));
+});
+
+function esc(str) {
+  if (!str) return "";
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>
