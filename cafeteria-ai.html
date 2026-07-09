@@ -461,6 +461,9 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;  // 空なら何もしない
 
+  // ユーザー操作をトリガーにAudioをアンロック（自動再生制限の解除）
+  unlockAudio();
+
   input.value = "";   // 入力欄をクリア
 
   // 【1】ユーザーのメッセージをチャットに表示
@@ -564,6 +567,25 @@ function getVoicevoxUrl() {
 // 再生中のAudioを管理（キャンセル用）
 let currentAudio = null;
 
+// ユーザー操作済みフラグ（自動再生ポリシー対策）
+let userHasInteracted = false;
+
+// AudioContextをアンロックする（iOS・Chrome自動再生制限の解除）
+function unlockAudio() {
+  if (userHasInteracted) return;
+  userHasInteracted = true;
+  // サイレントなAudioContextを作成して再生→自動再生制限を解除
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+    ctx.resume();
+  } catch(e) { /* 無視 */ }
+}
+
 async function speakText(text) {
   // 前の音声をキャンセル
   if (currentAudio) {
@@ -623,13 +645,17 @@ async function speakText(text) {
 function fallbackSpeak(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang  = "ja-JP";
-  utter.rate  = 1.1;
-  utter.pitch = 1.2;
-  utter.onstart = () => setAvatarTalking(true);
-  utter.onend   = () => setAvatarTalking(false);
-  window.speechSynthesis.speak(utter);
+  // Chrome対策：少し待ってから再生（自動再生ブロック回避）
+  setTimeout(() => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang  = "ja-JP";
+    utter.rate  = 1.0;
+    utter.pitch = 1.1;
+    utter.volume = 1.0;
+    utter.onstart = () => setAvatarTalking(true);
+    utter.onend   = () => setAvatarTalking(false);
+    window.speechSynthesis.speak(utter);
+  }, 100);
 }
 
 // ============================================================
@@ -684,6 +710,7 @@ function updateMicBtn() {
 
 // マイクボタンを押したときの処理
 document.getElementById("micBtn").addEventListener("click", () => {
+  unlockAudio(); // マイクボタン押下でもアンロック
   if (!recognition) {
     alert("このブラウザは音声認識に対応していません。\nGoogle Chromeをお使いください。");
     return;
