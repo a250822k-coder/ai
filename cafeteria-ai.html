@@ -311,18 +311,22 @@ function buildMenuText() {
 // 【システムプロンプト】AIの性格・役割の設定
 // ※ SYSTEM_PROMPTは毎回の送信時に最新メニューを読み込んで生成
 // ============================================================
-function getSystemPrompt() {
-  return `あなたは大学の食堂で働くフレンドリーなAIアシスタントです。
-以下のメニュー情報をもとに、学生からの質問に答えてください。
-
-${buildMenuText()}
-
-回答のルール：
-- 【最重要】ユーザーが使った言語で必ず返答すること。日本語→日本語、英語→英語、中国語→中国語、韓国語→韓国語のように、質問の言語に自動的に合わせる。
-- 丁寧でも親しみやすい口調で話す
-- アレルギーに関する質問には特に丁寧・正確に答える
-- メニュー情報にない質問は正直に「わからない」と答える
-- 回答は2〜4文程度に簡潔にまとめる`;
+function getSystemPrompt(extraInfo) {
+  extraInfo = extraInfo || "";
+  var extra = extraInfo ? ("【追加情報】\n" + extraInfo) : "";
+  return "あなたは大学の食堂で働くフレンドリーなAIアシスタントです。\n\n"
+    + buildMenuText() + "\n\n"
+    + "【食堂に関する質問への回答ルール（最重要）】\n"
+    + "- メニュー・価格・アレルギー・食材など食堂に関する内容は、必ず上記の食堂メニュー情報に記載された内容だけを使って答えること。\n"
+    + "- 記載されていない食堂情報は絶対に推測・創作せず、その情報は持っていませんと正直に答えること。\n\n"
+    + "【日常会話・一般的な質問への回答ルール】\n"
+    + "- 天気・ニュース・挨拶・雑談など食堂以外の質問には自由に答えてよい。\n"
+    + "- 天気など外部情報が必要な場合は、追加情報に含まれていればそれを使って答えること。\n"
+    + extra + "\n\n"
+    + "【共通ルール】\n"
+    + "- ユーザーが使った言語で必ず返答すること（日本語→日本語、英語→英語、中国語→中国語）。\n"
+    + "- 丁寧でも親しみやすい口調で話す。\n"
+    + "- 回答は2〜4文程度に簡潔にまとめる。";
 }
 
 // ============================================================
@@ -330,8 +334,15 @@ ${buildMenuText()}
 // 未設定ならlocalhostにフォールバック
 // ============================================================
 function getOllamaUrl() {
+  // 優先順位① URLパラメータ (?ollama=https://xxxx.trycloudflare.com)
+  const params = new URLSearchParams(window.location.search);
+  const param  = params.get("ollama");
+  if (param && param.trim()) return param.trim();
+  // 優先順位② 管理画面で保存したlocalStorage
   const saved = localStorage.getItem("cafeteria_ollama_url");
-  return (saved && saved.trim()) ? saved.trim() : "http://localhost:11434";
+  if (saved && saved.trim()) return saved.trim();
+  // 優先順位③ デフォルト（同じPCで動かす場合）
+  return "http://localhost:11434";
 }
 
 // ============================================================
@@ -340,13 +351,72 @@ function getOllamaUrl() {
 let conversationHistory = [];
 
 // ============================================================
+// 質問が天気に関するものか判定する
+// ============================================================
+function isWeatherQuestion(text) {
+  const keywords = ["天気","気温","雨","晴","曇","雪","気候","weather","温度","傘","風","湿度","forecast"];
+  return keywords.some(k => text.toLowerCase().includes(k));
+}
+
+// ============================================================
+// Open-Meteo API で天気情報を取得する（完全無料・APIキー不要）
+// 麗澤大学（柏市）の座標を使用
+// ============================================================
+async function fetchWeather() {
+  try {
+    // 緯度・経度：柏市付近
+    const lat = 35.88, lon = 139.97;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + `&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m`
+      + `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max`
+      + `&timezone=Asia%2FTokyo&forecast_days=1`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    const c    = data.current;
+    const d    = data.daily;
+
+    // 天気コードを日本語に変換
+    const codeToText = (code) => {
+      if (code === 0)          return "快晴☀️";
+      if (code <= 2)           return "晴れ🌤";
+      if (code === 3)          return "曇り☁️";
+      if (code <= 49)          return "霧🌫";
+      if (code <= 59)          return "霧雨🌧";
+      if (code <= 69)          return "雨🌧";
+      if (code <= 79)          return "雪❄️";
+      if (code <= 82)          return "にわか雨🌦";
+      if (code <= 99)          return "雷雨⛈";
+      return "不明";
+    };
+
+    const now  = codeToText(c.weathercode);
+    const tmax = d.temperature_2m_max[0];
+    const tmin = d.temperature_2m_min[0];
+    const rain = d.precipitation_probability_max[0];
+    const temp = c.temperature_2m;
+    const hum  = c.relativehumidity_2m;
+
+    return `現在の天気（柏市周辺）：${now}、気温 ${temp}℃、湿度 ${hum}%。`
+         + `本日の最高気温 ${tmax}℃ / 最低気温 ${tmin}℃、降水確率 ${rain}%。`;
+  } catch(e) {
+    return "天気情報を取得できませんでした。";
+  }
+}
+
+// ============================================================
 // OllamaのAPIにメッセージを送って返答をもらう関数
 // ============================================================
 async function callOllama(userMessage) {
   // 会話履歴にユーザーの発言を追加
   conversationHistory.push({ role: "user", content: userMessage });
 
-  const ollamaUrl = getOllamaUrl();  // 管理画面で設定したURL（またはlocalhost）
+  const ollamaUrl = getOllamaUrl();
+
+  // 天気に関する質問なら外部APIで情報を取得してAIに渡す
+  let extraInfo = "";
+  if (isWeatherQuestion(userMessage)) {
+    extraInfo = await fetchWeather();
+  }
 
   try {
     const response = await fetch(`${ollamaUrl}/api/chat`, {
@@ -355,7 +425,7 @@ async function callOllama(userMessage) {
       body: JSON.stringify({
         model: "gemma3",          // 使用するAIモデル名
         messages: [
-          { role: "system", content: getSystemPrompt() },  // AIの役割設定（毎回最新メニューを取得）
+          { role: "system", content: getSystemPrompt(extraInfo) },  // AIの役割設定（毎回最新メニューを取得）
           ...conversationHistory                         // これまでの会話履歴
         ],
         stream: false             // falseにすると全文まとめて返ってくる
@@ -480,8 +550,15 @@ function getVoiceId() {
 }
 
 function getVoicevoxUrl() {
+  // 優先順位① URLパラメータ (?voicevox=https://xxxx.trycloudflare.com)
+  const params = new URLSearchParams(window.location.search);
+  const param  = params.get("voicevox");
+  if (param && param.trim()) return param.trim();
+  // 優先順位② 管理画面で保存したlocalStorage
   const saved = localStorage.getItem("cafeteria_voicevox_url");
-  return (saved && saved.trim()) ? saved.trim() : "http://localhost:50021";
+  if (saved && saved.trim()) return saved.trim();
+  // 優先順位③ デフォルト
+  return "http://localhost:50021";
 }
 
 // 再生中のAudioを管理（キャンセル用）
@@ -628,13 +705,31 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
   }
 });
 
+
 // ============================================================
-// ===== Canvasアバター =====
+// ===== Canvasアバター（全ブラウザ・スマホ対応版）=====
 // ============================================================
 (function(){
   const cv = document.getElementById('av-canvas');
+  if (!cv) return;
   const cx = cv.getContext('2d');
   const W = 320, H = 320;
+
+  // roundRectポリフィル（iOS Safari・古いFirefox対応）
+  function rRect(x, y, w, h, r) {
+    const R = Math.min(r, w/2, h/2);
+    cx.beginPath();
+    cx.moveTo(x+R, y);
+    cx.lineTo(x+w-R, y);
+    cx.quadraticCurveTo(x+w, y, x+w, y+R);
+    cx.lineTo(x+w, y+h-R);
+    cx.quadraticCurveTo(x+w, y+h, x+w-R, y+h);
+    cx.lineTo(x+R, y+h);
+    cx.quadraticCurveTo(x, y+h, x, y+h-R);
+    cx.lineTo(x, y+R);
+    cx.quadraticCurveTo(x, y, x+R, y);
+    cx.closePath();
+  }
 
   const FACES = {
     normal:'(・v・)', happy:'(＾▽＾)', think:'(・・？)',
@@ -645,7 +740,6 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
     wave:'#1565c0', sorry:'#37474f', talk:'#1565c0',
   };
 
-  // アバターの状態
   let avSt = { face:'normal', armLAng:0, armRAng:0, bodyY:0, talkTog:false };
   let avTalkTimer = null, avFloatT = 0;
 
@@ -666,7 +760,7 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
       cx.translate(f.ax, f.ay);
       cx.rotate(f.ang);
       cx.beginPath();
-      cx.roundRect(-f.w/2, -f.l, f.w, f.l, f.w/2);
+      cx.ellipse(0, -f.l/2, f.w/2, f.l/2, 0, 0, Math.PI*2);
       cx.fillStyle = '#e53935'; cx.fill();
       cx.restore();
     });
@@ -674,7 +768,7 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
     cx.translate(flip ? 16 : -16, 4);
     cx.rotate(flip ? 0.75 : -0.75);
     cx.beginPath();
-    cx.roundRect(-7, -20, 14, 24, 7);
+    cx.ellipse(0, -10, 7, 12, 0, 0, Math.PI*2);
     cx.fillStyle = '#e53935'; cx.fill();
     cx.restore();
     cx.beginPath();
@@ -691,7 +785,7 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
     cx.translate(ax, ay);
     cx.rotate(angle * (flip ? 1 : -1));
     cx.beginPath();
-    cx.roundRect(-11, -60, 22, 65, 11);
+    cx.ellipse(0, -30, 11, 35, 0, 0, Math.PI*2);
     cx.fillStyle = '#1976d2'; cx.fill();
     cx.save();
     cx.translate(0, -68);
@@ -703,8 +797,8 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
   function avDraw() {
     cx.clearRect(0, 0, W, H);
     const MX = W / 2;
-    const bcy = 220 + avSt.bodyY;  // 体の中心Y（少し上に詰める）
-    const headY = 110 + avSt.bodyY; // 頭の中心Y
+    const bcy = 220 + avSt.bodyY;
+    const headY = 110 + avSt.bodyY;
     const bodyCol = BODY_COL[avSt.face] || '#1565c0';
     const armLX = MX - 90;
     const armRX = MX + 90;
@@ -721,11 +815,10 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
     cx.fillStyle = avSt.face === 'sorry' ? '#455a64' : '#1976d2'; cx.fill();
     cx.restore();
 
-    // ② 顔（モニター型）
+    // ② 顔（モニター型・rRect関数使用）
     const fw = 150, fh = 92;
     const fx = MX - fw/2, fy = headY - fh/2;
-    cx.beginPath();
-    cx.roundRect(fx, fy, fw, fh, 8);
+    rRect(fx, fy, fw, fh, 8);
     cx.fillStyle = '#f1f5f9'; cx.fill();
     cx.strokeStyle = '#334155'; cx.lineWidth = 3; cx.stroke();
 
@@ -740,7 +833,7 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
     cx.fillText(faceStr, MX, fy + fh/2);
     cx.restore();
 
-    // ③ 腕（最前面＝最後に描く）
+    // ③ 腕（最前面）
     drawArm(armLX, armY, avSt.armLAng, false);
     drawArm(armRX, armY, avSt.armRAng, true);
   }
@@ -757,11 +850,9 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
     avSt.armLAng = 0; avSt.armRAng = 0;
   }
 
-  // 外部から呼び出せるようにグローバルに公開
   window.avPlay = function(type) {
     avStopAnims();
     avSt.face = type;
-
     if (type === 'wave') {
       avSt.armRAng = -1.1;
       let a = -1.1, dir = 1, cnt = 0;
@@ -793,19 +884,15 @@ document.getElementById("chatInput").addEventListener("keydown", (e) => {
         if (cnt >= 6) { clearInterval(id); avSt.armLAng = 0; avSt.armRAng = 0; }
       }, 16);
     }
-    if (type === 'think') {
-      // 右腕を少し上げてキープ
-      avSt.armRAng = 0.3;
-    }
+    if (type === 'think') { avSt.armRAng = 0.3; }
     if (type === 'talk') {
       avSt.talkTog = false;
       avTalkTimer = setInterval(() => { avSt.talkTog = !avSt.talkTog; }, 300);
     }
   };
 
-  // 起動
   avLoop();
-  avPlay('wave'); // 起動時にあいさつ
+  avPlay('wave');
 })();
 
 </script>
