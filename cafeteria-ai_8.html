@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食堂AIアシスタント</title>
+<style>
+  /* ===== Google Fonts ===== */
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+  /* ===== CSS変数（色・サイズの一元管理） ===== */
+  :root {
+    --bg: #fdf6ec;
+    --panel: #fff8f0;
+    --accent: #ff7043;
+    --accent2: #ffb74d;
+    --accent3: #4caf7d;
+    --dark: #2d2d2d;
+    --mid: #6b6b6b;
+    --light: #e8ddd0;
+    --bubble-ai: #fff3e0;
+    --bubble-user: #e8f5e9;
+    --shadow: 0 4px 24px rgba(0,0,0,0.10);
+    --radius: 20px;
+    --font-main: 'M PLUS Rounded 1c', 'Noto Sans JP', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-main);
+    background: var(--bg);
+    color: var(--dark);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px 100px;
+  }
+
+  /* ===== ヘッダー ===== */
+  header {
+    text-align: center;
+    margin-bottom: 20px;
+    animation: fadeDown 0.6s ease;
+  }
+  header h1 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  header p { font-size: 0.85rem; color: var(--mid); margin-top: 4px; }
+
+  /* ===== アバターエリア ===== */
+  .avatar-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 16px;
+    animation: fadeDown 0.7s ease;
+  }
+
+  /* ===== Canvasアバター ===== */
+  #av-canvas { display: block; }
+
+  /* 吹き出し */
+  .speech-bubble {
+    background: white;
+    border: 2px solid var(--accent2);
+    border-radius: 16px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    max-width: 320px;
+    text-align: center;
+    color: var(--dark);
+    margin-top: 10px;
+    position: relative;
+    line-height: 1.5;
+    min-height: 44px;
+    box-shadow: var(--shadow);
+  }
+  .speech-bubble::before {
+    content: '';
+    position: absolute;
+    top: -12px; left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-bottom-color: var(--accent2);
+  }
+
+  /* ===== チャットログ ===== */
+  .chat-log {
+    width: 100%; max-width: 720px;
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    max-height: 340px;
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .message {
+    display: flex;
+    gap: 8px;
+    animation: fadeUp 0.3s ease;
+  }
+  .message.user { flex-direction: row-reverse; }
+
+  .msg-icon {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+  .message.ai   .msg-icon { background: var(--accent);  color: white; }
+  .message.user .msg-icon { background: var(--accent3); color: white; }
+
+  .msg-bubble {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .message.ai   .msg-bubble { background: var(--bubble-ai);   border-bottom-left-radius: 4px; }
+  .message.user .msg-bubble { background: var(--bubble-user); border-bottom-right-radius: 4px; }
+
+  /* ===== 入力エリア ===== */
+  .input-area {
+    width: 100%; max-width: 720px;
+    background: white;
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: fixed;
+    bottom: 16px;
+    left: 50%; transform: translateX(-50%);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  #chatInput {
+    flex: 1;
+    border: 2px solid var(--light);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-family: var(--font-main);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: none;
+    height: 44px;
+  }
+  #chatInput:focus { border-color: var(--accent2); }
+
+  /* ボタン共通 */
+  .btn {
+    border: none;
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-family: var(--font-main);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  .btn:active { transform: scale(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-send { background: var(--accent);  color: white; padding: 10px 20px; }
+  .btn-mic  { background: var(--accent3); color: white; padding: 10px 14px; font-size: 1.1rem; }
+  .btn-mic.recording { background: #e53935; animation: pulse 1s infinite; }
+
+  /* ステータス表示 */
+  #status {
+    font-size: 0.78rem;
+    color: var(--mid);
+    text-align: center;
+    min-height: 18px;
+  }
+
+  /* ===== アニメーション定義 ===== */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes waveArm {
+    from { transform: rotate(10deg); }
+    to   { transform: rotate(35deg); }
+  }
+  @keyframes blink {
+    0%, 90%, 100% { transform: scaleY(1); }
+    95%            { transform: scaleY(0.1); }
+  }
+  @keyframes talk {
+    from { height: 10px; }
+    to   { height: 5px; }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.6; }
+  }
+  @keyframes dotDot {
+    0%   { content: '考え中.'; }
+    33%  { content: '考え中..'; }
+    66%  { content: '考え中...'; }
+    100% { content: '考え中.'; }
+  }
+
+  .thinking::after {
+    content: '考え中.';
+    animation: dotDot 1.2s infinite;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== ヘッダー ===== -->
+<header>
+  <h1>🍱 食堂AIアシスタント</h1>
+  <p>メニューについて何でも聞いてね！</p>
+</header>
+
+<!-- ===== アバター（Canvas版） ===== -->
+<div class="avatar-area">
+  <canvas id="av-canvas" width="320" height="320"></canvas>
+  <div class="speech-bubble" id="bubbleText">
+    こんにちは！食堂のことなら何でも聞いてね😊
+  </div>
+</div>
+
+<!-- ===== チャットログ ===== -->
+<div class="chat-log" id="chatLog">
+  <div class="message ai">
+    <div class="msg-icon">🍱</div>
+    <div class="msg-bubble">こんにちは！食堂アシスタントです。メニューのこと、アレルギーのこと、何でも聞いてください！</div>
+  </div>
+</div>
+
+<!-- ===== 入力エリア ===== -->
+<div class="input-area">
+  <div class="input-row">
+    <!-- 🎤 マイクボタン：音声入力の開始/停止 -->
+    <button class="btn btn-mic" id="micBtn" title="音声入力">🎤</button>
+    <!-- テキスト入力欄 -->
+    <textarea id="chatInput" placeholder="例：今日のランチは何ですか？" rows="1"></textarea>
+    <!-- 送信ボタン -->
+    <button class="btn btn-send" id="sendBtn" onclick="sendMessage()">送信</button>
+  </div>
+  <div id="status">Enterキーでも送信できます</div>
+</div>
+
+
+<script>
+// ============================================================
+// 【メニュー情報をlocalStorageから読み込む】
+// メニューの編集は menu-editor.html で行い、ここでは自動取得します
+// ============================================================
+function buildMenuText() {
+  // ① メニューデータを管理画面から取得
+  const savedMenus = localStorage.getItem("cafeteria_menus");
+  const savedInfo  = localStorage.getItem("cafeteria_info");
+
+  // ② 営業情報
+  let bizText = "営業時間：11:00〜14:00（平日のみ）";
+  if (savedInfo) {
+    const info = JSON.parse(savedInfo);
+    bizText = `営業時間：${info.open || "11:00"}〜${info.close || "14:00"}（${info.note || "平日のみ"}）`;
+  }
+
+  // ③ メニューがなければデフォルト文言
+  if (!savedMenus) {
+    return `【食堂メニュー情報】\n（メニュー未登録）\n${bizText}`;
+  }
+
+  // ④ メニューデータをAIが読みやすいテキスト形式に変換
+  const menus = JSON.parse(savedMenus);
+  const lines = menus.map(m => {
+    const allergyStr = m.allergies && m.allergies.length > 0
+      ? m.allergies.join("・")
+      : "なし";
+    const noteStr = m.note ? `\n  備考：${m.note}` : "";
+    return `■ ${m.name}（¥${m.price}）
+  内容：${m.description}
+  使用食材：${m.ingredients}
+  アレルギー：${allergyStr}${noteStr}`;
+  });
+
+  return `【食堂メニュー情報】\n\n${lines.join("\n\n")}\n\n${bizText}`;
+}
+
+// ============================================================
+// 【システムプロンプト】AIの性格・役割の設定
+// ※ SYSTEM_PROMPTは毎回の送信時に最新メニューを読み込んで生成
+// ============================================================
+function getSystemPrompt(extraInfo = "") {
+  return `あなたは大学の食堂で働くフレンドリーなAIアシスタントです。
+
+${buildMenuText()}
+
+【食堂に関する質問への回答ルール（最重要）】
+- メニュー・価格・アレルギー・食材など食堂に関する内容は、必ず上記の「食堂メニュー情報」に記載された内容だけを使って答えること。
+- 記載されていない食堂情報（メニューにない料理、記載のないアレルギー等）は絶対に推測・創作せず「その情報は持っていません」と正直に答えること。
+
+【日常会話・一般的な質問への回答ルール】
+- 天気・ニュース・挨拶・雑談など食堂以外の質問には自由に答えてよい。
+- 天気など外部情報が必要な場合は、以下の「追加情報」に含まれていればそれを使って答えること。
+${extraInfo ? "【追加情報】
+" + extraInfo : ""}
+
+【共通ルール】
+- ユーザーが使った言語で必ず返答すること（日本語→日本語、英語→英語、中国語→中国語）。
+- 丁寧でも親しみやすい口調で話す。
+- 回答は2〜4文程度に簡潔にまとめる。`;
+}
+
+// ============================================================
+// 【OllamaのURL取得】管理画面で設定したURLを使う
+// 未設定ならlocalhostにフォールバック
+// ============================================================
+function getOllamaUrl() {
+  // 優先順位① URLパラメータ (?ollama=https://xxxx.trycloudflare.com)
+  const params = new URLSearchParams(window.location.search);
+  const param  = params.get("ollama");
+  if (param && param.trim()) return param.trim();
+  // 優先順位② 管理画面で保存したlocalStorage
+  const saved = localStorage.getItem("cafeteria_ollama_url");
+  if (saved && saved.trim()) return saved.trim();
+  // 優先順位③ デフォルト（同じPCで動かす場合）
+  return "http://localhost:11434";
+}
+
+// ============================================================
+// 会話履歴（AIとのやりとりを記憶するための配列）
+// ============================================================
+let conversationHistory = [];
+
+// ============================================================
+// 質問が天気に関するものか判定する
+// ============================================================
+function isWeatherQuestion(text) {
+  const keywords = ["天気","気温","雨","晴","曇","雪","気候","weather","温度","傘","風","湿度","forecast"];
+  return keywords.some(k => text.toLowerCase().includes(k));
+}
+
+// ============================================================
+// Open-Meteo API で天気情報を取得する（完全無料・APIキー不要）
+// 麗澤大学（柏市）の座標を使用
+// ============================================================
+async function fetchWeather() {
+  try {
+    // 緯度・経度：柏市付近
+    const lat = 35.88, lon = 139.97;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + `&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m`
+      + `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max`
+      + `&timezone=Asia%2FTokyo&forecast_days=1`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    const c    = data.current;
+    const d    = data.daily;
+
+    // 天気コードを日本語に変換
+    const codeToText = (code) => {
+      if (code === 0)          return "快晴☀️";
+      if (code <= 2)           return "晴れ🌤";
+      if (code === 3)          return "曇り☁️";
+      if (code <= 49)          return "霧🌫";
+      if (code <= 59)          return "霧雨🌧";
+      if (code <= 69)          return "雨🌧";
+      if (code <= 79)          return "雪❄️";
+      if (code <= 82)          return "にわか雨🌦";
+      if (code <= 99)          return "雷雨⛈";
+      return "不明";
+    };
+
+    const now  = codeToText(c.weathercode);
+    const tmax = d.temperature_2m_max[0];
+    const tmin = d.temperature_2m_min[0];
+    const rain = d.precipitation_probability_max[0];
+    const temp = c.temperature_2m;
+    const hum  = c.relativehumidity_2m;
+
+    return `現在の天気（柏市周辺）：${now}、気温 ${temp}℃、湿度 ${hum}%。`
+         + `本日の最高気温 ${tmax}℃ / 最低気温 ${tmin}℃、降水確率 ${rain}%。`;
+  } catch(e) {
+    return "天気情報を取得できませんでした。";
+  }
+}
+
+// ============================================================
+// OllamaのAPIにメッセージを送って返答をもらう関数
+// ============================================================
+async function callOllama(userMessage) {
+  // 会話履歴にユーザーの発言を追加
+  conversationHistory.push({ role: "user", content: userMessage });
+
+  const ollamaUrl = getOllamaUrl();
+
+  // 天気に関する質問なら外部APIで情報を取得してAIに渡す
+  let extraInfo = "";
+  if (isWeatherQuestion(userMessage)) {
+    extraInfo = await fetchWeather();
+  }
+
+  try {
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gemma3",          // 使用するAIモデル名
+        messages: [
+          { role: "system", content: getSystemPrompt(extraInfo) },  // AIの役割設定（毎回最新メニューを取得）
+          ...conversationHistory                         // これまでの会話履歴
+        ],
+        stream: false             // falseにすると全文まとめて返ってくる
+      })
+    });
+
+    if (!response.ok) throw new Error("Ollamaに接続できませんでした");
+
+    const data = await response.json();
+    const aiReply = data.message.content;
+
+    // 会話履歴にAIの返答も追加（次回の会話で文脈として使われる）
+    conversationHistory.push({ role: "assistant", content: aiReply });
+
+    return aiReply;
+
+  } catch (error) {
+    // エラーの場合はわかりやすいメッセージを返す
+    avPlay('sorry');  // エラー時は困り顔
+    return `⚠️ Ollamaに接続できませんでした（接続先: ${ollamaUrl}）。\n` +
+           `以下を確認してください：\n` +
+           `1. Ollamaが起動しているか（ollama serve）\n` +
+           `2. CloudflareのURLが正しく設定されているか（管理画面で確認）\n` +
+           `3. 「ollama pull gemma3」でモデルを取得しているか`;
+  }
+}
+
+// ============================================================
+// メッセージ送信のメイン処理
+// ============================================================
+async function sendMessage() {
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text) return;  // 空なら何もしない
+
+  input.value = "";   // 入力欄をクリア
+
+  // 【1】ユーザーのメッセージをチャットに表示
+  addMessage("user", text);
+
+  // 【2】送信中の状態にする
+  setStatus("AIが考え中…");
+  document.getElementById("sendBtn").disabled = true;
+  setBubble("うーん、考え中だよ…🤔", true);
+  avPlay('think');  // 考え中の表情に
+
+  // 【3】OllamaにAIの返答を求める
+  const reply = await callOllama(text);
+
+  // 【4】AIの返答をチャットに表示
+  addMessage("ai", reply);
+
+  // 【5】吹き出し・アバターに反映
+  setBubble(reply.length > 60 ? reply.slice(0, 57) + "…" : reply);
+  setAvatarTalking(true);
+
+  // 【6】音声で読み上げる
+  speakText(reply);
+
+  // 【7】状態をリセット
+  setStatus("Enterキーでも送信できます");
+  document.getElementById("sendBtn").disabled = false;
+}
+
+// ============================================================
+// チャットログにメッセージを追加する
+// ============================================================
+function addMessage(role, text) {
+  const log = document.getElementById("chatLog");
+  const div = document.createElement("div");
+  div.className = `message ${role}`;
+  div.innerHTML = `
+    <div class="msg-icon">${role === "ai" ? "🍱" : "👤"}</div>
+    <div class="msg-bubble">${escapeHtml(text)}</div>
+  `;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;  // 最新メッセージまでスクロール
+}
+
+// XSS対策（HTMLタグをエスケープ）
+function escapeHtml(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ============================================================
+// アバターの吹き出しテキストを変更する
+// ============================================================
+function setBubble(text, thinking = false) {
+  const el = document.getElementById("bubbleText");
+  el.textContent = text;
+  el.className = thinking ? "speech-bubble thinking" : "speech-bubble";
+}
+
+// ============================================================
+// アバターの「話しているアニメ」を制御する（Canvasアバター版）
+// ============================================================
+function setAvatarTalking(flag) {
+  if (flag) {
+    avPlay('talk');
+    setTimeout(() => avPlay('normal'), 4000);
+  } else {
+    avPlay('normal');
+  }
+}
+
+// ============================================================
+// ステータステキストを更新する
+// ============================================================
+function setStatus(msg) {
+  document.getElementById("status").textContent = msg;
+}
+
+// ============================================================
+// 【音声読み上げ】VOICEVOX を優先、失敗時は SpeechSynthesis にフォールバック
+// ============================================================
+
+// VOICEVOXのキャラクターID一覧（よく使うもの）
+// 2=四国めたん, 3=ずんだもん, 8=春日部つむぎ, 10=波音リツ, 13=青山龍星
+// ※ menu-editor.htmlで変更できるようにlocalStorageに保存
+function getVoiceId() {
+  return parseInt(localStorage.getItem("cafeteria_voice_id") || "3"); // デフォルト：ずんだもん
+}
+
+function getVoicevoxUrl() {
+  // 優先順位① URLパラメータ (?voicevox=https://xxxx.trycloudflare.com)
+  const params = new URLSearchParams(window.location.search);
+  const param  = params.get("voicevox");
+  if (param && param.trim()) return param.trim();
+  // 優先順位② 管理画面で保存したlocalStorage
+  const saved = localStorage.getItem("cafeteria_voicevox_url");
+  if (saved && saved.trim()) return saved.trim();
+  // 優先順位③ デフォルト
+  return "http://localhost:50021";
+}
+
+// 再生中のAudioを管理（キャンセル用）
+let currentAudio = null;
+
+async function speakText(text) {
+  // 前の音声をキャンセル
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+
+  const voicevoxUrl = getVoicevoxUrl();
+  const speakerId   = getVoiceId();
+
+  try {
+    // ① VOICEVOX: テキストから音声クエリを生成
+    const queryRes = await fetch(
+      `${voicevoxUrl}/audio_query?text=${encodeURIComponent(text)}&speaker=${speakerId}`,
+      { method: "POST" }
+    );
+    if (!queryRes.ok) throw new Error("audio_query failed");
+    const query = await queryRes.json();
+
+    // 話速・抑揚を少し調整（自然に聞こえるように）
+    query.speedScale  = 1.1;   // 話す速さ（1.0が標準）
+    query.intonationScale = 1.2; // 抑揚の強さ
+
+    // ② VOICEVOX: 音声合成（WAVデータを取得）
+    const synthRes = await fetch(
+      `${voicevoxUrl}/synthesis?speaker=${speakerId}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(query)
+      }
+    );
+    if (!synthRes.ok) throw new Error("synthesis failed");
+
+    // ③ WAVデータをBlobURLに変換して再生
+    const blob    = await synthRes.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    currentAudio  = new Audio(blobUrl);
+
+    // 読み上げ中はアバターをアニメーション
+    currentAudio.onplay  = () => setAvatarTalking(true);
+    currentAudio.onended = () => {
+      setAvatarTalking(false);
+      URL.revokeObjectURL(blobUrl); // メモリ解放
+    };
+
+    await currentAudio.play();
+
+  } catch (e) {
+    // VOICEVOXに繋がらない場合はブラウザ標準の読み上げにフォールバック
+    console.warn("VOICEVOX未起動のためSpeechSynthesisで読み上げます:", e.message);
+    fallbackSpeak(text);
+  }
+}
+
+// ブラウザ標準の読み上げ（VOICEVOXが使えないときの予備）
+function fallbackSpeak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang  = "ja-JP";
+  utter.rate  = 1.1;
+  utter.pitch = 1.2;
+  utter.onstart = () => setAvatarTalking(true);
+  utter.onend   = () => setAvatarTalking(false);
+  window.speechSynthesis.speak(utter);
+}
+
+// ============================================================
+// 【音声入力】Web Speech API の SpeechRecognition を使用
+// ============================================================
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let isRecording = false;
+
+if (SR) {
+  recognition = new SR();
+  recognition.lang = "ja-JP";           // 日本語で認識
+  recognition.continuous = false;        // 一言話したら止まる
+  recognition.interimResults = true;     // 話している途中でもリアルタイムに表示
+
+  // 認識結果をテキスト入力欄に反映
+  recognition.onresult = (e) => {
+    const transcript = Array.from(e.results)
+      .map(r => r[0].transcript)
+      .join("");
+    document.getElementById("chatInput").value = transcript;
+  };
+
+  // 認識が終わったら自動送信
+  recognition.onend = () => {
+    isRecording = false;
+    updateMicBtn();
+    const q = document.getElementById("chatInput").value.trim();
+    if (q) sendMessage();  // 入力欄に文字があれば送信
+  };
+
+  recognition.onerror = (e) => {
+    setStatus(`音声認識エラー: ${e.error}`);
+    isRecording = false;
+    updateMicBtn();
+  };
+}
+
+// マイクボタンの見た目を更新
+function updateMicBtn() {
+  const btn = document.getElementById("micBtn");
+  if (isRecording) {
+    btn.textContent = "⏹";
+    btn.classList.add("recording");
+    setStatus("🎤 聞き取り中… 話しかけてください");
+  } else {
+    btn.textContent = "🎤";
+    btn.classList.remove("recording");
+    setStatus("Enterキーでも送信できます");
+  }
+}
+
+// マイクボタンを押したときの処理
+document.getElementById("micBtn").addEventListener("click", () => {
+  if (!recognition) {
+    alert("このブラウザは音声認識に対応していません。\nGoogle Chromeをお使いください。");
+    return;
+  }
+  if (isRecording) {
+    recognition.stop();
+  } else {
+    recognition.start();
+    isRecording = true;
+    updateMicBtn();
+  }
+});
+
+// Enterキーで送信（Shift+Enterは改行）
+document.getElementById("chatInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+
+// ============================================================
+// ===== Canvasアバター（全ブラウザ・スマホ対応版）=====
+// ============================================================
+(function(){
+  const cv = document.getElementById('av-canvas');
+  if (!cv) return;
+  const cx = cv.getContext('2d');
+  const W = 320, H = 320;
+
+  // roundRectポリフィル（iOS Safari・古いFirefox対応）
+  function rRect(x, y, w, h, r) {
+    const R = Math.min(r, w/2, h/2);
+    cx.beginPath();
+    cx.moveTo(x+R, y);
+    cx.lineTo(x+w-R, y);
+    cx.quadraticCurveTo(x+w, y, x+w, y+R);
+    cx.lineTo(x+w, y+h-R);
+    cx.quadraticCurveTo(x+w, y+h, x+w-R, y+h);
+    cx.lineTo(x+R, y+h);
+    cx.quadraticCurveTo(x, y+h, x, y+h-R);
+    cx.lineTo(x, y+R);
+    cx.quadraticCurveTo(x, y, x+R, y);
+    cx.closePath();
+  }
+
+  const FACES = {
+    normal:'(・v・)', happy:'(＾▽＾)', think:'(・・？)',
+    wave:'(・v・)', sorry:'(；д；)', talk:'(・ω・)', talk2:'(・ω-)',
+  };
+  const BODY_COL = {
+    normal:'#1565c0', happy:'#1565c0', think:'#1976d2',
+    wave:'#1565c0', sorry:'#37474f', talk:'#1565c0',
+  };
+
+  let avSt = { face:'normal', armLAng:0, armRAng:0, bodyY:0, talkTog:false };
+  let avTalkTimer = null, avFloatT = 0;
+
+  function drawOpenHand(flip) {
+    cx.save();
+    if (flip) cx.scale(-1, 1);
+    cx.beginPath();
+    cx.ellipse(0, 0, 20, 24, 0, 0, Math.PI*2);
+    cx.fillStyle = '#e53935'; cx.fill();
+    const fingers = [
+      {ax:-16,ay:-16,ang:-0.85,l:26,w:8},
+      {ax:-6, ay:-22,ang:-0.3, l:30,w:8},
+      {ax:5,  ay:-22,ang:0.15, l:30,w:8},
+      {ax:16, ay:-16,ang:0.6,  l:26,w:8},
+    ];
+    fingers.forEach(f => {
+      cx.save();
+      cx.translate(f.ax, f.ay);
+      cx.rotate(f.ang);
+      cx.beginPath();
+      cx.ellipse(0, -f.l/2, f.w/2, f.l/2, 0, 0, Math.PI*2);
+      cx.fillStyle = '#e53935'; cx.fill();
+      cx.restore();
+    });
+    cx.save();
+    cx.translate(flip ? 16 : -16, 4);
+    cx.rotate(flip ? 0.75 : -0.75);
+    cx.beginPath();
+    cx.ellipse(0, -10, 7, 12, 0, 0, Math.PI*2);
+    cx.fillStyle = '#e53935'; cx.fill();
+    cx.restore();
+    cx.beginPath();
+    cx.ellipse(0, 16, 20, 9, 0, 0, Math.PI*2);
+    cx.fillStyle = '#1565c0'; cx.fill();
+    cx.beginPath();
+    cx.ellipse(0, 12, 20, 7, 0, 0, Math.PI*2);
+    cx.fillStyle = '#ef9a9a'; cx.fill();
+    cx.restore();
+  }
+
+  function drawArm(ax, ay, angle, flip) {
+    cx.save();
+    cx.translate(ax, ay);
+    cx.rotate(angle * (flip ? 1 : -1));
+    cx.beginPath();
+    cx.ellipse(0, -30, 11, 35, 0, 0, Math.PI*2);
+    cx.fillStyle = '#1976d2'; cx.fill();
+    cx.save();
+    cx.translate(0, -68);
+    drawOpenHand(flip);
+    cx.restore();
+    cx.restore();
+  }
+
+  function avDraw() {
+    cx.clearRect(0, 0, W, H);
+    const MX = W / 2;
+    const bcy = 220 + avSt.bodyY;
+    const headY = 110 + avSt.bodyY;
+    const bodyCol = BODY_COL[avSt.face] || '#1565c0';
+    const armLX = MX - 90;
+    const armRX = MX + 90;
+    const armY  = bcy - 35;
+
+    // ① 体
+    cx.save();
+    cx.translate(MX, bcy);
+    cx.beginPath();
+    cx.ellipse(0, 0, 46, 60, 0, 0, Math.PI*2);
+    cx.fillStyle = bodyCol; cx.fill();
+    cx.beginPath();
+    cx.ellipse(0, 38, 38, 24, 0, 0, Math.PI*2);
+    cx.fillStyle = avSt.face === 'sorry' ? '#455a64' : '#1976d2'; cx.fill();
+    cx.restore();
+
+    // ② 顔（モニター型・rRect関数使用）
+    const fw = 150, fh = 92;
+    const fx = MX - fw/2, fy = headY - fh/2;
+    rRect(fx, fy, fw, fh, 8);
+    cx.fillStyle = '#f1f5f9'; cx.fill();
+    cx.strokeStyle = '#334155'; cx.lineWidth = 3; cx.stroke();
+
+    const faceStr = avSt.face === 'talk'
+      ? (avSt.talkTog ? FACES.talk : FACES.talk2)
+      : (FACES[avSt.face] || FACES.normal);
+    cx.save();
+    cx.font = 'bold 24px "M PLUS Rounded 1c", sans-serif';
+    cx.fillStyle = '#1e293b';
+    cx.textAlign = 'center';
+    cx.textBaseline = 'middle';
+    cx.fillText(faceStr, MX, fy + fh/2);
+    cx.restore();
+
+    // ③ 腕（最前面）
+    drawArm(armLX, armY, avSt.armLAng, false);
+    drawArm(armRX, armY, avSt.armRAng, true);
+  }
+
+  function avLoop() {
+    avFloatT += 0.04;
+    avSt.bodyY = Math.sin(avFloatT) * 3.5;
+    avDraw();
+    requestAnimationFrame(avLoop);
+  }
+
+  function avStopAnims() {
+    clearInterval(avTalkTimer); avTalkTimer = null;
+    avSt.armLAng = 0; avSt.armRAng = 0;
+  }
+
+  window.avPlay = function(type) {
+    avStopAnims();
+    avSt.face = type;
+    if (type === 'wave') {
+      avSt.armRAng = -1.1;
+      let a = -1.1, dir = 1, cnt = 0;
+      const id = setInterval(() => {
+        a += dir * 0.08;
+        if (a > -0.5) { dir = -1; }
+        if (a < -1.3) { dir = 1; cnt++; }
+        avSt.armRAng = a;
+        if (cnt >= 5) { clearInterval(id); avSt.armRAng = 0; }
+      }, 16);
+    }
+    if (type === 'happy') {
+      let a = 0, dir = 1, cnt = 0;
+      const id = setInterval(() => {
+        a += dir * 0.05;
+        if (a > 0.35) { dir = -1; }
+        if (a < 0 && dir === -1) { dir = 1; cnt++; }
+        avSt.armLAng = -a; avSt.armRAng = a;
+        if (cnt >= 4) { clearInterval(id); avSt.armLAng = 0; avSt.armRAng = 0; }
+      }, 16);
+    }
+    if (type === 'sorry') {
+      let a = 0, dir = 1, cnt = 0;
+      const id = setInterval(() => {
+        a += dir * 0.04;
+        if (a > 0.2) { dir = -1; }
+        if (a < -0.2) { dir = 1; cnt++; }
+        avSt.armLAng = a; avSt.armRAng = a;
+        if (cnt >= 6) { clearInterval(id); avSt.armLAng = 0; avSt.armRAng = 0; }
+      }, 16);
+    }
+    if (type === 'think') { avSt.armRAng = 0.3; }
+    if (type === 'talk') {
+      avSt.talkTog = false;
+      avTalkTimer = setInterval(() => { avSt.talkTog = !avSt.talkTog; }, 300);
+    }
+  };
+
+  avLoop();
+  avPlay('wave');
+})();
+
+</script>
+</body>
+</html>
